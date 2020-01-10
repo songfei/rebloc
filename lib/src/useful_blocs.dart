@@ -17,12 +17,13 @@ import 'dart:async';
 import 'package:rebloc/rebloc.dart';
 import 'package:rxdart/rxdart.dart';
 
-/// Debounces repeated dispatches of an [Action] or list of Actions.
+/// Debounces repeated dispatches of an [ReduxAction] or list of Actions.
 ///
 /// This [Bloc] attaches directly to the middleware stream and uses RxDart's
-/// [debounce] method to debounce [Action]s with runtime types contained in
+/// [debounce] method to debounce [ReduxAction]s with runtime types contained in
 /// [actionTypes] for the given [duration].
 class DebouncerBloc<T> implements Bloc<T> {
+  @override
   DebouncerBloc(
     this.actionTypes, {
     this.duration = const Duration(seconds: 1),
@@ -38,27 +39,32 @@ class DebouncerBloc<T> implements Bloc<T> {
   final List<Type> actionTypes;
 
   @override
-  Stream<WareContext<T>> applyMiddleware(Stream<WareContext<T>> input) {
+  get initialState => null;
+
+  @override
+  String get moduleName => 'DebouncerBloc';
+
+  @override
+  Stream<WareContext> applyMiddleware(Stream<WareContext> input) {
     // This rather complicated-looking statement splits the incoming stream of
     // Actions into two streams. Actions that match the types in [actionTypes]
     // go into one, and all other actions go into the other. The stream that
     // contains the matching actions is then debounced using the provided
     // Duration.
-    return MergeStream<WareContext<T>>([
+    return MergeStream<WareContext>([
       input.where((c) => !actionTypes.contains(c.action.runtimeType)),
-      Observable(input.where((c) => actionTypes.contains(c.action.runtimeType)))
-          .debounceTime(duration),
+      Observable(input.where((c) => actionTypes.contains(c.action.runtimeType))).debounceTime(duration),
     ]);
   }
 
   @override
-  Stream<Accumulator<T>> applyReducer(Stream<Accumulator<T>> input) {
+  Stream<Accumulator> applyReducer(Stream<Accumulator> input) {
     // This Bloc makes no changes to app state.
     return input;
   }
 
   @override
-  Stream<WareContext<T>> applyAfterware(Stream<WareContext<T>> input) {
+  Stream<WareContext> applyAfterware(Stream<WareContext> input) {
     // This Bloc takes no action after reducing is complete.
     return input;
   }

@@ -30,13 +30,13 @@ class IntStateMatcher extends Matcher {
   }
 }
 
-class IncrementAction extends Action {}
+class IncrementAction extends ReduxAction {}
 
-class SquareAction extends Action {}
+class SquareAction extends ReduxAction {}
 
 class BasicBloc extends SimpleBloc<IntState> {
   @override
-  IntState reducer(IntState state, Action action) {
+  IntState reducer(IntState state, ReduxAction action) {
     if (action is IncrementAction) {
       return IntState(state.anInt + 1);
     } else if (action is SquareAction) {
@@ -50,7 +50,7 @@ class BasicBloc extends SimpleBloc<IntState> {
 void main() {
   group('Store tests', () {
     test('Store with one bloc executes one action', () {
-      final store = Store<IntState>(
+      final store = ReduxStore<IntState>(
         initialState: IntState(0),
         blocs: [
           BasicBloc(),
@@ -69,7 +69,7 @@ void main() {
     });
 
     test('Store with one bloc executes multiple identical actions', () {
-      final store = Store<IntState>(
+      final store = ReduxStore<IntState>(
         initialState: IntState(0),
         blocs: [
           BasicBloc(),
@@ -92,7 +92,7 @@ void main() {
     });
 
     test('Store with one bloc executes multiple different actions', () {
-      final store = Store<IntState>(
+      final store = ReduxStore<IntState>(
         initialState: IntState(0),
         blocs: [
           BasicBloc(),

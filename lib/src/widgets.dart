@@ -7,12 +7,13 @@ import 'dart:async';
 import 'package:flutter/widgets.dart' hide Action;
 import 'package:rxdart/subjects.dart' show BehaviorSubject;
 
+import '../rebloc.dart';
 import 'engine.dart';
 
 /// A [StatelessWidget] that provides [Store] access to its descendants via a
 /// static [of] method.
-class StoreProvider<S> extends StatefulWidget {
-  final Store<S> store;
+class StoreProvider extends StatefulWidget {
+  final ReduxStore store;
   final Widget child;
   final bool disposeStore;
 
@@ -23,29 +24,28 @@ class StoreProvider<S> extends StatefulWidget {
     Key key,
   }) : super(key: key);
 
-  static Store<S> of<S>(BuildContext context) {
-    final Type type = _type<_InheritedStoreProvider<S>>();
+  static ReduxStore of(BuildContext context) {
+    final Type type = _type<_InheritedStoreProvider>();
 
     Widget widget = context.inheritFromWidgetOfExactType(type);
 
     if (widget == null) {
-      throw Exception(
-          'Couldn\'t find a StoreProvider of the correct type ($type).');
+      throw Exception('Couldn\'t find a StoreProvider of the correct type ($type).');
     } else {
-      return (widget as _InheritedStoreProvider<S>).store;
+      return (widget as _InheritedStoreProvider).store;
     }
   }
 
   @override
-  _StoreProviderState<S> createState() => _StoreProviderState<S>();
+  _StoreProviderState createState() => _StoreProviderState();
 
   static Type _type<T>() => T;
 }
 
-class _StoreProviderState<S> extends State<StoreProvider<S>> {
+class _StoreProviderState extends State<StoreProvider> {
   @override
   Widget build(BuildContext context) {
-    return _InheritedStoreProvider<S>(store: widget.store, child: widget.child);
+    return _InheritedStoreProvider(store: widget.store, child: widget.child);
   }
 
   @override
@@ -59,28 +59,25 @@ class _StoreProviderState<S> extends State<StoreProvider<S>> {
 }
 
 /// The [InheritedWidget] used by [StoreProvider].
-class _InheritedStoreProvider<S> extends InheritedWidget {
-  final Store<S> store;
+class _InheritedStoreProvider extends InheritedWidget {
+  final ReduxStore store;
 
-  _InheritedStoreProvider({Key key, Widget child, this.store})
-      : super(key: key, child: child);
+  _InheritedStoreProvider({Key key, Widget child, this.store}) : super(key: key, child: child);
 
   @override
-  bool updateShouldNotify(_InheritedStoreProvider<S> oldWidget) =>
-      (oldWidget.store != store);
+  bool updateShouldNotify(_InheritedStoreProvider oldWidget) => (oldWidget.store != store);
 }
 
 /// Accepts a [BuildContext] and [ViewModel] and builds a Widget in response. A
 /// [DispatchFunction] is provided so widgets in the returned subtree can
 /// dispatch new actions to the [Store] in response to UI events.
-typedef Widget ViewModelWidgetBuilder<S, V>(
-    BuildContext context, DispatchFunction dispatcher, V viewModel);
+typedef Widget ViewModelWidgetBuilder<V>(BuildContext context, DispatchFunction dispatcher, V viewModel);
 
 /// Creates a new view model instance from the given state object. This method
 /// should be used to narrow or filter the data present in [state] to the
 /// minimum required by the [ViewModelWidgetBuilder] the converter will be used
 /// with.
-typedef V ViewModelConverter<S, V>(S state);
+typedef V ViewModelConverter<V>(ReduxState state);
 
 /// Transforms a stream of state objects found via [StoreProvider] into a stream
 /// of view models, and builds a [Widget] each time a distinctly new view model
@@ -92,9 +89,9 @@ typedef V ViewModelConverter<S, V>(S state);
 /// instance is unequal to the previous one, the widget subtree is rebuilt using
 /// [builder]. Any state changes emitted by the [Store] that don't impact the
 /// view model used by a particular [ViewModelSubscriber] are ignored by it.
-class ViewModelSubscriber<S, V> extends StatelessWidget {
-  final ViewModelConverter<S, V> converter;
-  final ViewModelWidgetBuilder<S, V> builder;
+class ViewModelSubscriber<V> extends StatelessWidget {
+  final ViewModelConverter<V> converter;
+  final ViewModelWidgetBuilder<V> builder;
 
   ViewModelSubscriber({
     @required this.converter,
@@ -104,21 +101,17 @@ class ViewModelSubscriber<S, V> extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    Store<S> store = StoreProvider.of<S>(context);
-    return _ViewModelStreamBuilder<S, V>(
-        dispatcher: store.dispatch,
-        stream: store.states,
-        converter: converter,
-        builder: builder);
+    ReduxStore store = StoreProvider.of(context);
+    return _ViewModelStreamBuilder<V>(dispatcher: store.dispatch, stream: store.states, converter: converter, builder: builder);
   }
 }
 
 /// Does the actual work for [ViewModelSubscriber].
-class _ViewModelStreamBuilder<S, V> extends StatefulWidget {
+class _ViewModelStreamBuilder<V> extends StatefulWidget {
   final DispatchFunction dispatcher;
-  final BehaviorSubject<S> stream;
-  final ViewModelConverter<S, V> converter;
-  final ViewModelWidgetBuilder<S, V> builder;
+  final BehaviorSubject<ReduxState> stream;
+  final ViewModelConverter<V> converter;
+  final ViewModelWidgetBuilder<V> builder;
 
   _ViewModelStreamBuilder({
     @required this.dispatcher,
@@ -128,23 +121,18 @@ class _ViewModelStreamBuilder<S, V> extends StatefulWidget {
   });
 
   @override
-  _ViewModelStreamBuilderState createState() =>
-      _ViewModelStreamBuilderState<S, V>();
+  _ViewModelStreamBuilderState createState() => _ViewModelStreamBuilderState<V>();
 }
 
 /// Subscribes to a stream of app state objects, converts each one into a view
 /// model, and then uses it to rebuild its children.
-class _ViewModelStreamBuilderState<S, V>
-    extends State<_ViewModelStreamBuilder<S, V>> {
+class _ViewModelStreamBuilderState<V> extends State<_ViewModelStreamBuilder<V>> {
   V _latestViewModel;
   StreamSubscription<V> _subscription;
 
   void _subscribe() {
     _latestViewModel = widget.converter(widget.stream.value);
-    _subscription = widget.stream
-        .map<V>((s) => widget.converter(s))
-        .distinct()
-        .listen((viewModel) {
+    _subscription = widget.stream.map<V>((s) => widget.converter(s)).distinct().listen((viewModel) {
       setState(() => _latestViewModel = viewModel);
     });
   }
@@ -160,7 +148,7 @@ class _ViewModelStreamBuilderState<S, V>
   /// unsubscribe from the previous widget's stream and subscribe to the new
   /// one.
   @override
-  void didUpdateWidget(_ViewModelStreamBuilder<S, V> oldWidget) {
+  void didUpdateWidget(_ViewModelStreamBuilder<V> oldWidget) {
     super.didUpdateWidget(oldWidget);
     _subscription.cancel();
     _subscribe();
@@ -181,8 +169,7 @@ class _ViewModelStreamBuilderState<S, V>
 
 /// Widget builder function that includes a [dispatcher] capable of dispatching
 /// an [Action] to an inherited [Store].
-typedef Widget DispatchWidgetBuilder(
-    BuildContext context, DispatchFunction dispatcher);
+typedef Widget DispatchWidgetBuilder(BuildContext context, DispatchFunction dispatcher);
 
 /// Retrieves a [DispatcherFunction] from an ancestor [StoreProvider], and
 /// builds builds widgets that can use it.
@@ -201,7 +188,7 @@ class DispatchSubscriber<S> extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final store = StoreProvider.of<S>(context);
+    final store = StoreProvider.of(context);
     return builder(context, store.dispatch);
   }
 }
@@ -219,12 +206,11 @@ class FirstBuildDispatcher<S> extends StatefulWidget {
     Key key,
   }) : super(key: key);
 
-  final Action action;
+  final ReduxAction action;
   final Widget child;
 
   @override
-  _FirstBuildDispatcherState<S> createState() =>
-      _FirstBuildDispatcherState<S>();
+  _FirstBuildDispatcherState<S> createState() => _FirstBuildDispatcherState<S>();
 }
 
 class _FirstBuildDispatcherState<S> extends State<FirstBuildDispatcher<S>> {
@@ -234,7 +220,7 @@ class _FirstBuildDispatcherState<S> extends State<FirstBuildDispatcher<S>> {
   Widget build(BuildContext context) {
     if (!hasDispatched) {
       hasDispatched = true;
-      final store = StoreProvider.of<S>(context);
+      final store = StoreProvider.of(context);
       store?.dispatch(widget.action);
     }
 

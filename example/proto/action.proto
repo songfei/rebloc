@@ -1,0 +1,24 @@
+syntax = "proto3";
+
+import "dart_options.proto";
+
+option (dart_options.imports) = {
+  mixins: [{
+    name: "ReduxAction"
+    import_from: "package:rebloc/rebloc.dart"
+  }];
+};
+
+option (dart_options.default_mixin) = "ReduxAction";
+
+message NoMixinPB {
+    option (dart_options.mixin) = "";
+}
+
+message IntAction {
+
+}
+
+message ResetAction {
+
+}

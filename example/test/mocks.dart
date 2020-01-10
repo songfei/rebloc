@@ -5,6 +5,6 @@
 import 'package:rebloc/rebloc.dart';
 
 class MockStore {
-  final actions = <Action>[];
-  void dispatcher(Action action) => actions.add(action);
+  final actions = <ReduxAction>[];
+  void dispatcher(ReduxAction action) => actions.add(action);
 }
